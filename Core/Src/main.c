@@ -43,6 +43,8 @@ typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+SPI_HandleTypeDef hspi2;
+
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
@@ -58,6 +60,30 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = sizeof(defaultTaskBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for spiTask */
+osThreadId_t spiTaskHandle;
+uint32_t spiTaskBuffer[ 512 ];
+osStaticThreadDef_t spiTaskControlBlock;
+const osThreadAttr_t spiTask_attributes = {
+  .name = "spiTask",
+  .cb_mem = &spiTaskControlBlock,
+  .cb_size = sizeof(spiTaskControlBlock),
+  .stack_mem = &spiTaskBuffer[0],
+  .stack_size = sizeof(spiTaskBuffer),
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for dataReadyTask */
+osThreadId_t dataReadyTaskHandle;
+uint32_t dataReadyTaskBuffer[ 256 ];
+osStaticThreadDef_t dataReadyTaskControlBlock;
+const osThreadAttr_t dataReadyTask_attributes = {
+  .name = "dataReadyTask",
+  .cb_mem = &dataReadyTaskControlBlock,
+  .cb_size = sizeof(dataReadyTaskControlBlock),
+  .stack_mem = &dataReadyTaskBuffer[0],
+  .stack_size = sizeof(dataReadyTaskBuffer),
+  .priority = (osPriority_t) osPriorityHigh,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -67,7 +93,10 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_SPI2_Init(void);
 void StartDefaultTask(void *argument);
+extern void StartSpiTask(void *argument);
+extern void StartDataReadyTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -120,6 +149,7 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
+  MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_1);
   HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_2);
@@ -147,6 +177,12 @@ int main(void)
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
+  /* creation of spiTask */
+  spiTaskHandle = osThreadNew(StartSpiTask, NULL, &spiTask_attributes);
+
+  /* creation of dataReadyTask */
+  dataReadyTaskHandle = osThreadNew(StartDataReadyTask, NULL, &dataReadyTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -215,6 +251,44 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief SPI2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI2_Init(void)
+{
+
+  /* USER CODE BEGIN SPI2_Init 0 */
+
+  /* USER CODE END SPI2_Init 0 */
+
+  /* USER CODE BEGIN SPI2_Init 1 */
+
+  /* USER CODE END SPI2_Init 1 */
+  /* SPI2 parameter configuration*/
+  hspi2.Instance = SPI2;
+  hspi2.Init.Mode = SPI_MODE_MASTER;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.NSS = SPI_NSS_HARD_OUTPUT;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi2.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI2_Init 2 */
+
+  /* USER CODE END SPI2_Init 2 */
+
 }
 
 /**
@@ -368,6 +442,12 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, A_IN2_Pin|B_IN2_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : DATA_READY_Pin */
+  GPIO_InitStruct.Pin = DATA_READY_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(DATA_READY_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : MOTOR_STBY_Pin */
   GPIO_InitStruct.Pin = MOTOR_STBY_Pin;

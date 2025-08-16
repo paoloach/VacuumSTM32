@@ -5,20 +5,24 @@
  *      Author: paolo
  */
 
-#include <stdio.h>
+#include <cstdio>
 #include <FreeRTOS.h>
 #include <cmsis_os2.h>
+#include "main.h"
 #include "MainThread.h"
 #include "Commands.h"
 #include "CDC_USB.h"
 #include "Move.h"
+#include "SPI_COM.h"
 
 extern osMessageQueueId_t commandQueueHandle;
 
 Move move;
+SPI_COM spi_com;
 
 void mainThread() {
 	move.init();
+	spi_com.init();
 	Command command;
 	initCDCUSB();
 
@@ -76,5 +80,15 @@ void mainThread() {
 	  }
 
 	osDelay(1000/ portTICK_PERIOD_MS);
+	}
+}
+
+
+/**
+ * @brief Callback per interrupt Data Ready dall'ESP32
+ */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+	if (GPIO_Pin == DATA_READY_Pin)  {
+		SPI_COM::newData();
 	}
 }

@@ -40,7 +40,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Src/MainThread.cpp
         Core/Src/Move.cpp
         Core/Src/Token.cpp
-        )
+        Core/Src/SPI_COM.cpp
+        Core/Inc/SPI_COM.h
+)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
