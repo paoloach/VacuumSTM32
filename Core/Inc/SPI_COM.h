@@ -18,9 +18,9 @@ class SPI_COM {
 public:
     SPI_COM();
     void init();
-    [[noreturn]] void StartSpiTask();
+    [[noreturn]] static void StartSpiTask(void * parameter);
 
-    [[noreturn]] static void StartDataReadyTask();
+    [[noreturn]] static void StartDataReadyTask(void * parameter);
 
     static void newData();
     [[nodiscard]] osMessageQueueId_t getTxQueue() const {return txQueueHandle;}
@@ -33,6 +33,8 @@ private:
     uint8_t spi_rx_buffer[SPI_BUFFER_SIZE];
     osMessageQueueId_t txQueueHandle;
     osMessageQueueId_t rxQueueHandle;
+    osThreadId_t spiTaskHandle;
+    osThreadId_t dataReadyTaskHandle;
 };
 
 

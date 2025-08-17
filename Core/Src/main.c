@@ -60,30 +60,6 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = sizeof(defaultTaskBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for spiTask */
-osThreadId_t spiTaskHandle;
-uint32_t spiTaskBuffer[ 512 ];
-osStaticThreadDef_t spiTaskControlBlock;
-const osThreadAttr_t spiTask_attributes = {
-  .name = "spiTask",
-  .cb_mem = &spiTaskControlBlock,
-  .cb_size = sizeof(spiTaskControlBlock),
-  .stack_mem = &spiTaskBuffer[0],
-  .stack_size = sizeof(spiTaskBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
-};
-/* Definitions for dataReadyTask */
-osThreadId_t dataReadyTaskHandle;
-uint32_t dataReadyTaskBuffer[ 256 ];
-osStaticThreadDef_t dataReadyTaskControlBlock;
-const osThreadAttr_t dataReadyTask_attributes = {
-  .name = "dataReadyTask",
-  .cb_mem = &dataReadyTaskControlBlock,
-  .cb_size = sizeof(dataReadyTaskControlBlock),
-  .stack_mem = &dataReadyTaskBuffer[0],
-  .stack_size = sizeof(dataReadyTaskBuffer),
-  .priority = (osPriority_t) osPriorityHigh,
-};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -95,8 +71,6 @@ static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_SPI2_Init(void);
 void StartDefaultTask(void *argument);
-extern void StartSpiTask(void *argument);
-extern void StartDataReadyTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -104,18 +78,7 @@ extern void StartDataReadyTask(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-const uint32_t MAIN_STACK_SIZE=2048;
-uint8_t mainThreadStack[2048];
-static StaticTask_t mainThreadcb;
 
-static const osThreadAttr_t  	mainThread_attributes = {
-  .name = "mainThread",
-  .cb_mem = (void*) &mainThreadcb,
-  .cb_size = sizeof(mainThreadcb),
-  .stack_mem =  mainThreadStack,
-  .stack_size = MAIN_STACK_SIZE
-
-};
 /* USER CODE END 0 */
 
 /**
@@ -177,12 +140,6 @@ int main(void)
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
-
-  /* creation of spiTask */
-  spiTaskHandle = osThreadNew(StartSpiTask, NULL, &spiTask_attributes);
-
-  /* creation of dataReadyTask */
-  dataReadyTaskHandle = osThreadNew(StartDataReadyTask, NULL, &dataReadyTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -462,6 +419,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 7, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

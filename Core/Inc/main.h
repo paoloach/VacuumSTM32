@@ -61,6 +61,7 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define DATA_READY_Pin GPIO_PIN_1
 #define DATA_READY_GPIO_Port GPIOA
+#define DATA_READY_EXTI_IRQn EXTI1_IRQn
 #define MOTOR_STBY_Pin GPIO_PIN_4
 #define MOTOR_STBY_GPIO_Port GPIOA
 #define A_IN1_Pin GPIO_PIN_0

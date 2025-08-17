@@ -15,12 +15,14 @@
 
 constexpr uint32_t SPI_TIMEOUT=1000;
 constexpr uint32_t QUEUE_SIZE=10;
-
+constexpr uint32_t SPI_STACK_SIZE=2048;
+constexpr uint32_t DATA_READY_STACK_SIZE=512;
 constexpr uint32_t QUEUE_ITEM_SIZE=sizeof(SPI_Message_t);
 constexpr uint32_t QUEUE_BUFFER_SIZE=((QUEUE_SIZE * QUEUE_ITEM_SIZE) + 64);
+
+
 extern SPI_HandleTypeDef hspi2;
 extern SPI_COM spi_com;
-extern osThreadId_t spiTaskHandle;
 
 static uint8_t queue_buffer_tx[QUEUE_BUFFER_SIZE];
 static uint64_t queue_cb_tx[16];
@@ -45,17 +47,30 @@ const osMessageQueueAttr_t rxQueue_attributes = {
     .mq_size = sizeof(queue_buffer_rx)
   };
 
+uint8_t txThreadStack[SPI_STACK_SIZE];
+static StaticTask_t spiThreadCB;
 
-extern "C" {
-    void StartSpiTask(void *argument);
-    void StartDataReadyTask(void *argument);
-}
+const osThreadAttr_t spiThread_attributes = {
+    .name = "spiThread",
+    .cb_mem = (void*) &spiThreadCB,
+    .cb_size = sizeof(spiThreadCB),
+    .stack_mem =  txThreadStack,
+    .stack_size = SPI_STACK_SIZE
 
+  };
 
+uint8_t rxThreadStack[DATA_READY_STACK_SIZE];
+static StaticTask_t dataReadyThreadCB;
 
-void StartSpiTask(void *argument) {
-    spi_com.StartSpiTask();
-}
+const osThreadAttr_t data_Ready_thread_attributes = {
+    .name = "dataReadyThread",
+    .cb_mem = (void*) &dataReadyThreadCB,
+    .cb_size = sizeof(dataReadyThreadCB),
+    .stack_mem =  rxThreadStack,
+    .stack_size = DATA_READY_STACK_SIZE
+
+  };
+
 
 SPI_COM::SPI_COM() :txQueueHandle(nullptr),rxQueueHandle(nullptr){
 
@@ -64,9 +79,11 @@ SPI_COM::SPI_COM() :txQueueHandle(nullptr),rxQueueHandle(nullptr){
 void SPI_COM::init() {
     txQueueHandle = osMessageQueueNew (QUEUE_SIZE, QUEUE_ITEM_SIZE, &txQueue_attributes);
     rxQueueHandle = osMessageQueueNew (QUEUE_SIZE, QUEUE_ITEM_SIZE, &rxQueue_attributes);
+    spiTaskHandle = osThreadNew(&SPI_COM::StartSpiTask,nullptr,&spiThread_attributes );
+    dataReadyTaskHandle = osThreadNew(&SPI_COM::StartDataReadyTask,nullptr,&data_Ready_thread_attributes );
 }
 
-[[noreturn]] void SPI_COM::StartSpiTask() {
+[[noreturn]] void SPI_COM::StartSpiTask(void * parameter) {
     SPI_Message_t tx_msg, rx_msg;
     uint16_t rx_length;
     uint32_t flags;
@@ -78,34 +95,30 @@ void SPI_COM::init() {
         if (flags == 0x01 || HAL_GPIO_ReadPin(DATA_READY_GPIO_Port, DATA_READY_Pin) == GPIO_PIN_SET) {
             // Controlla se ci sono dati da inviare
             bool has_tx_data = false;
-            if (osMessageQueueGet(txQueueHandle, &tx_msg, nullptr, 0) == osOK) {
+            if (osMessageQueueGet(spi_com.txQueueHandle, &tx_msg, nullptr, 0) == osOK) {
                 has_tx_data = true;
             }
 
             // Esegui transazione SPI
             HAL_StatusTypeDef status;
             if (has_tx_data) {
-                status = ESP32_SPI_Transaction(tx_msg.data, tx_msg.length, rx_msg.data, &rx_length);
+                status = spi_com.ESP32_SPI_Transaction(tx_msg.data, tx_msg.length, rx_msg.data, &rx_length);
             } else {
-                status = ESP32_SPI_Transaction(nullptr, 0, rx_msg.data, &rx_length);
+                status = spi_com.ESP32_SPI_Transaction(nullptr, 0, rx_msg.data, &rx_length);
             }
 
             if (status == HAL_OK && rx_length > 0) {
                 rx_msg.length = rx_length;
                 rx_msg.valid = true;
 
-                osMessageQueuePut(rxQueueHandle, &rx_msg, 0, 0);
+                osMessageQueuePut(spi_com.rxQueueHandle, &rx_msg, 0, 0);
             }
 
         }
     }
 }
 
-void StartDataReadyTask(void *argument) {
-    SPI_COM::StartDataReadyTask();
-}
-
-[[noreturn]] void SPI_COM::StartDataReadyTask() {
+[[noreturn]] void SPI_COM::StartDataReadyTask(void * parameter) {
     uint8_t last_state = 0;
     while (true) {
         uint8_t current_state = HAL_GPIO_ReadPin(DATA_READY_GPIO_Port, DATA_READY_Pin);
@@ -114,7 +127,7 @@ void StartDataReadyTask(void *argument) {
             last_state = current_state;
 
             if (current_state == GPIO_PIN_SET) {
-                osThreadFlagsSet(spiTaskHandle, 0x01);
+                osThreadFlagsSet(spi_com.spiTaskHandle, 0x01);
             }
         }
 
@@ -123,7 +136,7 @@ void StartDataReadyTask(void *argument) {
 }
 
 void SPI_COM::newData() {
-    osThreadFlagsSet(spiTaskHandle, 0x01);
+    osThreadFlagsSet(spi_com.spiTaskHandle, 0x01);
 }
 
 
